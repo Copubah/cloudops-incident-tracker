@@ -1,0 +1,22 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint PHP
+        run: find config public -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Build container
+        run: docker build -t cloudops-incident-tracker:ci .
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform format
+        run: terraform -chdir=terraform fmt -check
+      - name: Terraform validate
+        run: terraform -chdir=terraform init -backend=false && terraform -chdir=terraform validate

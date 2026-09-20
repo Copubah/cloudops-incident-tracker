@@ -1,0 +1,4 @@
+aws_region     = "us-east-1"
+environment    = "lab"
+repository_url = "https://github.com/YOUR_USERNAME/cloudops-incident-tracker.git"
+# alarm_email = "you@example.com"

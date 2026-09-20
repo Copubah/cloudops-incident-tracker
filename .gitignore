@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+vendor/
+.idea/
+.vscode/
+.DS_Store
+*.log
+docker-compose.override.yml
+terraform/.terraform/
+terraform/*.tfstate*
+terraform/*.tfplan
+terraform/crash.log
+terraform/*.auto.tfvars
+terraform/terraform.tfvars
+!terraform/terraform.tfvars.example

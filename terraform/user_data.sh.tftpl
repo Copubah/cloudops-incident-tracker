@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+exec > >(tee /var/log/cloudops-bootstrap.log) 2>&1
+dnf install -y docker git jq amazon-cloudwatch-agent
+systemctl enable --now docker
+mkdir -p /usr/local/lib/docker/cli-plugins /opt/cloudops
+curl -fL --retry 3 https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+git clone --depth 1 '${repository_url}' /opt/cloudops/app
+cd /opt/cloudops/app
+aws secretsmanager get-secret-value --region '${aws_region}' --secret-id '${secret_arn}' --query SecretString --output text > /root/cloudops-secret.json
+chmod 600 /root/cloudops-secret.json
+jq -r 'to_entries[] | "\(.key)=\(.value)"' /root/cloudops-secret.json > .env
+printf 'APP_PORT=80\nAPP_ENV=production\n' >> .env
+chmod 600 .env
+rm -f /root/cloudops-secret.json
+cat > docker-compose.override.yml <<'EOF'
+services:
+  app:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${log_group}
+        awslogs-stream: app
+  db:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${log_group}
+        awslogs-stream: mariadb
+EOF
+docker compose up -d --build
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'EOF'
+{"logs":{"logs_collected":{"files":{"collect_list":[{"file_path":"/var/log/cloudops-bootstrap.log","log_group_name":"${log_group}","log_stream_name":"bootstrap-{instance_id}"},{"file_path":"/var/log/secure","log_group_name":"${log_group}","log_stream_name":"security-{instance_id}"}]}}}}
+EOF
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
